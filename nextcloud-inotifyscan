@@ -168,6 +168,19 @@ def scan(task):
     _logger.info('Scan for %s', p)
     subprocess.call(task.occ_cmd+['files:scan', '--no-interaction', '--path='+p,
                                   '--shallow', '--quiet'])
+  """Trigger memories index if it's in Pictures folders.
+  """
+    if "picture" in p.lower() and "ocTransfer" not in p:
+      new_paths = set()
+    """Remove account path prefixes, memories does not work with those.
+    """
+      path_parts = p.split('/', 3)
+      if len(path_parts) > 3:
+        new_path = '/' + path_parts[3]
+      else:
+        new_path = '/'
+      _logger.info('Memories scan for %s', new_path)
+      subprocess.call(task.occ_cmd+['memories:index', '--user=tanpro260196', '--folder='+new_path, '--quiet'])
   task.paths.clear()
 
 def watch_instances(instances):
