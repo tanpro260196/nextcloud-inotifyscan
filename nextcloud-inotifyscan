@@ -23,9 +23,9 @@ logging.basicConfig(format='%(levelname)s - %(message)s')
 _logger = logging.getLogger()
 
 Instance = collections.namedtuple(
-		'Instance', 'interval occ users external_storage docker php memories_scan')
-Folder = collections.namedtuple('Folder', 'occ_cmd path_prefix data_prefix memories_scan')
-Task = collections.namedtuple('Task', 'occ_cmd paths memories_scan')
+		'Instance', 'interval occ users external_storage docker php memories_scan memories_scan_path')
+Folder = collections.namedtuple('Folder', 'occ_cmd path_prefix data_prefix memories_scan memories_scan_path')
+Task = collections.namedtuple('Task', 'occ_cmd paths memories_scan memories_scan_path')
 
 class EnvironNotFound(Exception):
 	pass
@@ -97,8 +97,10 @@ def parse_config(config_file):
 					continue
 			memories_scan = configparser_default(
           		config.getboolean, section, 'memories_scan', False)
+			memories_scan_path= configparser_default(
+          		config.getboolean, section, 'memories_scan_path', False)
 			yield Instance(interval=interval, occ=occ, users=users,
-										 external_storage=external_storage, docker=docker, php=php, memories_scan=memories_scan)
+										 external_storage=external_storage, docker=docker, php=php, memories_scan=memories_scan, memories_scan_path=memories_scan_path)
 		except configparser.Error as e:
 			_logger.warning('config error: %s', e)
 
@@ -120,9 +122,10 @@ def parse_environ():
 		docker = False
 		occ = require_environ('NEXTCLOUD_HOME') + '/occ'
 	memories_scan = os.environ.get('MEMORIES_SCAN', 'False') == 'True'
+	memories_scan_path = os.environ.get('MEMORIES_SCAN_PATH', 'False') == 'True'
 	return Instance(interval=interval, occ=occ, users=(user,),
 									external_storage=None, docker=docker,
-									php='php', memories_scan=memories_scan)
+									php='php', memories_scan=memories_scan, memories_scan_path=memories_scan_path)
 
 def parse_args():
 	"""Parse commandline arguments and yield Instance objects.
@@ -172,7 +175,7 @@ def scan(task):
 		subprocess.call(task.occ_cmd+['files:scan', '--no-interaction', '--path='+p,
 																	'--shallow', '--quiet'])
 		
-		if task.memories_scan and "picture" in p.lower() and "ocTransfer" not in p:
+		if task.memories_scan and task.memories_scan_path.lower() in p.lower() and "ocTransfer" not in p:
 			new_paths = set()
 			path_parts = p.split('/', 3)
 			if len(path_parts) > 3:
@@ -205,7 +208,7 @@ def watch_instances(instances):
       path_prefix = '/' + user + '/files'
       data_prefix = data_dir + path_prefix
       folders.append(Folder(occ_cmd=occ_cmd, path_prefix=path_prefix,
-                            data_prefix=data_prefix, memories_scan=instance.memories_scan))
+                            data_prefix=data_prefix, memories_scan=instance.memories_scan, memories_scan_path = instance.memories_scan_path))
     if instance.external_storage:
       _logger.debug('external storage scan is enabled for Nextcloud at %s',
                     os.path.dirname(instance.occ))
@@ -244,7 +247,7 @@ def watch_instances(instances):
           data_prefix = storage['configuration']['datadir'].rstrip('/')
           data_prefix = path_mapper(data_prefix)
           folders.append(Folder(occ_cmd=occ_cmd, path_prefix=path_prefix,
-                                data_prefix=data_prefix, memories_scan=instance.memories_scan))
+                                data_prefix=data_prefix, memories_scan=instance.memories_scan, memories_scan_path = instance.memories_scan_path))
   workers = tuple(map(watch, folders))
   min_interval = min(instance.interval for instance in instances)
   while True:
@@ -287,7 +290,7 @@ def watch(folder):
 					raise IOError
 			# Python 2 nothing read
 			except IOError:
-				yield Task(occ_cmd=folder.occ_cmd, paths=scan_paths, memories_scan=folder.memories_scan)
+				yield Task(occ_cmd=folder.occ_cmd, paths=scan_paths, memories_scan=folder.memories_scan, memories_scan_path = folder.memories_scan_path)
 				continue
 
 			fcntl.fcntl(inotifywait_fd, fcntl.F_SETFL, inotifywait_fl)
