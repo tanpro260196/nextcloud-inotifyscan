@@ -179,7 +179,7 @@ def scan(task):
 				new_path = '/' + path_parts[3]
 			else:
 				new_path = '/'
-			_logger.info('Memories scan for %s', new_path)
+			_logger.info('Memories index for %s', new_path)
 			subprocess.call(task.occ_cmd+['memories:index', '--user='+path_parts[1], '--folder='+new_path, '--quiet'])
 	task.paths.clear()
 
